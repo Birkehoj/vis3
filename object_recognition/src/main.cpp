@@ -21,7 +21,7 @@ int main()
     char *obj_folder_path("../resources/objects");
     Object_recognition obj_recogizer(obj_folder_path);
     vector<Object_recognition::Result> object_poses;
-    obj_recogizer.getObjects(scene, object_poses);
+    //obj_recogizer.getObjects(scene, object_poses);
     PCL_DEBUG("Done Object detection");
     return 0;
 }
