@@ -1,1 +1,0 @@
-/home/anders/Documents/qtwork/vis3/object_recognition/build/CMakeFiles/object_recognition.dir
