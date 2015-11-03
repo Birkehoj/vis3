@@ -4,7 +4,7 @@ project(vis3)
 set( CMAKE_BUILD_TYPE Debug)
 
 find_package(PCL 1.7 REQUIRED)
-
+find_package( OpenCV REQUIRED )
 include_directories(
   ${PCL_INCLUDE_DIRS}
   include
@@ -22,8 +22,10 @@ add_executable (object_recognition
   src/object_recognition.cpp
   src/feature_cloud.cpp
 )
+
 target_link_libraries (object_recognition
   ${PCL_LIBRARIES}
+  ${OpenCV_LIBS}
 )
 
 # Compiler flags

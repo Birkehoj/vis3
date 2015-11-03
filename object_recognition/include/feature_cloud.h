@@ -7,6 +7,8 @@
 #include <pcl/point_types.h>
 #include <pcl/point_cloud.h>
 #include <pcl/kdtree/kdtree_flann.h>
+#include <string>
+
 class Feature_cloud
 {
 public:
@@ -20,7 +22,7 @@ public:
   typedef pcl::PointCloud<FeatureT> FeatureCloudT;
   typedef pcl::KdTreeFLANN<pcl::PointXYZ, flann::L2_Simple<float> > SearchMethodT;
 
-  Feature_cloud(CloudT::Ptr xyz);
+  Feature_cloud(CloudT::Ptr xyz, std::string, bool inMM);
 
   // Get a pointer to the cloud of feature descriptors
   FeatureCloudT::Ptr getLocalFeatures () const {
@@ -29,6 +31,7 @@ public:
   CloudT::Ptr getCloud() const {
     return xyz_;
   }
+  std::string name;
 private:
   SearchMethodT::Ptr search_method_;
   CloudT::Ptr xyz_; // downsampled cloud
@@ -38,5 +41,6 @@ private:
   FeatureCloudT::Ptr features_;
   void computeFeatures(CloudT::Ptr xyz);
   bool orient_query_normals_;
+
 };
 #endif // FEATURE_CLOUD_H
