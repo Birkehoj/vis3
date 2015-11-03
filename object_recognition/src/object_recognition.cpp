@@ -196,7 +196,7 @@ void Object_recognition::alignment(const std::vector<Feature_cloud>& scene_objec
     {
       sac_ia.setInputCloud(objects[i].getCloud());
       sac_ia.setSourceFeatures(objects[i].getLocalFeatures());
-      pcl::PointCloud<pcl::PointXYZ>::Ptr registration_output;
+      pcl::PointCloud<pcl::PointXYZ>::Ptr registration_output(new PointCloudT);
       sac_ia.align (*registration_output);
       double score = (float) sac_ia.getFitnessScore(max_correspondence_distance_);
       if (score < best_object_match.score)

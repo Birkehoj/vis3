@@ -30,33 +30,11 @@ int main()
   std::vector<CloudT::Ptr> scene_objects;
   Object_recognition obj_recogizer(obj_folder_path);
   //obj_recogizer.displaySegments(scene);
-  //obj_recogizer.segmentSceneInObjects(scene, scene_objects);
-  std::cout << "Scene object size = " << scene_objects.size() << std::endl;
-  // Source point cloud (needs to be filled with data of course)
-  // Target image
-  pcl::PCLImage image;
-  // Create PointCloudImageExtractor subclass that can handle "label" field
-  pcl::io::PointCloudImageExtractorFromLabelField<PointT> pcie;
-  // Set it up if not happy with the defaults
-  pcie.setColorMode(pcie.COLORS_RGB_RANDOM);
-  // Try to extract an image
-  bool success = pcie.extract(*scene, image);
-  // Save to file if succeeded
-  if (success)
-  {
-  }
-    pcl::io::saveImage ("filename.png", image);
-
-
-  // displayObjects(im, scene_objects);
-/*
   vector<Object_recognition::Result> object_poses;
   PCL_INFO("Determine object poses\n");
-  //obj_recogizer.getObjects(scene, object_poses);
-  //obj_recogizer.displaySegments(scene);
-  //obj_recogizer.displayAlignment(scene, object_poses);
+  obj_recogizer.getObjects(scene, object_poses);
+  obj_recogizer.displayAlignment(scene, object_poses);
   PCL_DEBUG("Done Object detection\n");
-*/
   return 0;
 }
 

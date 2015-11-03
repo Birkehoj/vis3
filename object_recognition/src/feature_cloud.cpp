@@ -14,7 +14,7 @@ Feature_cloud::Feature_cloud(CloudT::Ptr xyz, std::string name="Unknown obj", bo
     pcl::copyPointCloud(*xyz, *tmp);
     if(inMM) {
 
-        int scaleFactor = 0.01;
+        double scaleFactor = 0.01;
         for (pcl::PointCloud<PointT>::iterator i = tmp->begin(); i != tmp->end(); i++)
         {
             i->z *= scaleFactor; i->y *= scaleFactor; i->x *= scaleFactor;
@@ -53,7 +53,7 @@ void Feature_cloud::computeFeatures(CloudT::Ptr xyz)
 
     PCL_WARN("Point cloud contains %d points\n", xyz_->points.size());
     if(xyz_->points.size() < 100) {
-        PCL_ERROR("Less then ten points in cloud, cloud size=%i",xyz_->points.size());
+        PCL_ERROR("Less then 100 points in cloud, cloud size=%i",xyz_->points.size());
         {
             const float search_radius = 0.1f; // 10cm
             // Filtering object.
@@ -91,7 +91,6 @@ void Feature_cloud::computeFeatures(CloudT::Ptr xyz)
     PCL_WARN("Point cloud contains %d points\n", xyz_->points.size());
     // Check normals for NaN or infinity
     PCL_WARN("Checking normals...\n");
-    //surfNormal->back().
     pcl::PointCloud<pcl::PointXYZ>::iterator j = xyz_->begin();
     for (pcl::PointCloud<pcl::Normal>::iterator i = surfNormal->begin(); i != surfNormal->end()-1; )
     {
