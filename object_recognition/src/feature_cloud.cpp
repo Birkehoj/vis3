@@ -14,12 +14,11 @@ Feature_cloud::Feature_cloud(CloudT::Ptr xyz, std::string name="Unknown obj", bo
     pcl::copyPointCloud(*xyz, *tmp);
     if(inMM) {
 
-        double scaleFactor = 0.01;
+        double scaleFactor = 0.001;
         for (pcl::PointCloud<PointT>::iterator i = tmp->begin(); i != tmp->end(); i++)
         {
             i->z *= scaleFactor; i->y *= scaleFactor; i->x *= scaleFactor;
         }
-
     }
     normal_radius_ = 2*resolution_;
     feature_radius_ = 25*resolution_;
@@ -49,32 +48,6 @@ void Feature_cloud::computeFeatures(CloudT::Ptr xyz)
         pcl::copyPointCloud (*xyz, sampled_indices.points, *xyz_);
         */
     }
-
-
-    PCL_WARN("Point cloud contains %d points\n", xyz_->points.size());
-    if(xyz_->points.size() < 100) {
-        PCL_ERROR("Less then 100 points in cloud, cloud size=%i",xyz_->points.size());
-        {
-            const float search_radius = 0.1f; // 10cm
-            // Filtering object.
-            pcl::MovingLeastSquares<pcl::PointXYZ, pcl::PointXYZ> filter;
-            filter.setInputCloud(xyz);
-            // Object for searching.
-            pcl::search::KdTree<pcl::PointXYZ>::Ptr kdtree;
-            filter.setSearchMethod(kdtree);
-            // Use all neighbors in a radius of 3cm.
-            filter.setSearchRadius(search_radius);
-            // Upsampling method. Other possibilites are DISTINCT_CLOUD, RANDOM_UNIFORM_DENSITY
-            // and VOXEL_GRID_DILATION. NONE disables upsampling. Check the API for details.
-            filter.setUpsamplingMethod(pcl::MovingLeastSquares<pcl::PointXYZ, pcl::PointXYZ>::VOXEL_GRID_DILATION);
-            // Radius around each point, where the local plane will be sampled.
-            filter.setUpsamplingRadius(search_radius);
-            // Sampling step size. Bigger values will yield less (if any) new points.
-            filter.setUpsamplingStepSize(resolution_);
-            filter.process(*xyz_);
-        }
-        //throw 1;
-    }
     /* Compute surface normals
      * http://pointclouds.org/documentation/tutorials/correspondence_grouping.php#correspondence-grouping
      */
@@ -82,6 +55,7 @@ void Feature_cloud::computeFeatures(CloudT::Ptr xyz)
     {
         pcl::NormalEstimationOMP<PointT, pcl::Normal> ne;
         //ne.setRadiusSearch(normal_radius_);
+        ne.setNumberOfThreads(3);
         ne.setKSearch(10);
         ne.setInputCloud(xyz_);
         ne.setSearchSurface(xyz_);
@@ -110,7 +84,7 @@ void Feature_cloud::computeFeatures(CloudT::Ptr xyz)
     }
     if(xyz_->points.size() < 10) {
         PCL_ERROR("Less then ten finite normals in cloud, cloud size=%i",surfNormal->points.size());
-        throw 2;
+        //throw 2;
     }
     // For debugging, output the size of both clouds
     PCL_WARN("Point cloud contains %d points\n", xyz_->points.size());
@@ -119,13 +93,24 @@ void Feature_cloud::computeFeatures(CloudT::Ptr xyz)
      * http://pointclouds.org/documentation/tutorials/correspondence_grouping.php#correspondence-grouping
      */
     pcl::SHOTEstimationOMP<PointT,pcl::Normal,FeatureT> shot;
+    shot.setNumberOfThreads(3);
     shot.setRadiusSearch(feature_radius_);
     shot.setSearchSurface(xyz_);
     // shot.setSearchMethod(search_method_); // No match ??
     shot.setInputNormals(surfNormal);
     shot.setInputCloud(xyz_);    
     shot.compute(*features_);
+
     PCL_WARN("Checking feature for infinite values...\n");
+    for (size_t i = 0; i < features_->size(); i++){
+        for (size_t j = 0; j < features_->points[i].descriptorSize(); j++){
+            if (!pcl_isfinite(features_->points[i].descriptor[j])) {
+                features_->points[i].descriptor[j] = 0;
+                PCL_WARN("Feature is infinite!!!\n");
+            }
+        }
+    }
+    /*
     j = xyz_->begin();
     for (pcl::PointCloud<FeatureT>::iterator i = features_->begin(); i != features_->end()-1; )
     {
@@ -152,6 +137,7 @@ void Feature_cloud::computeFeatures(CloudT::Ptr xyz)
     }
     if(xyz_->points.size() < 10) {
         PCL_ERROR("Less then ten finite normals in cloud, cloud size=%i",features_->points.size());
-        throw 2;
+        //throw 2;
     }
+    */
 }

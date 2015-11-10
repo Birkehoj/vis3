@@ -33,6 +33,7 @@ void Object_recognition::setObjects()
       objects.push_back(Feature_cloud(tmpCloud, fn.substr(0,fn.find_last_of(".")), true ) );
       PCL_INFO("added point cloud: %s  ", objects.back().name.c_str());
       PCL_INFO("with %i features\n", objects.back().getLocalFeatures()->size());
+      pcl::io::savePCDFile("object.pcd", *tmpCloud);
     }
   }
   closedir (pDir);
@@ -50,6 +51,9 @@ void Object_recognition::getObjects(const PointCloudT::Ptr& scene, std::vector<R
       getSceneSegmentFeatures(scene_clouds, scene_objects);
     }
   }
+  scene_objects.pop_back();
+  scene_objects.pop_back();
+  scene_objects.pop_back();
   PCL_DEBUG("Align objects");
   alignment(scene_objects, object_poses);
 }
@@ -119,27 +123,37 @@ void Object_recognition::showPointCloud(const PointCloudT::Ptr& cloud, char* nam
 
 void Object_recognition::displaySegments(const PointCloudT::Ptr &scene)
 {
+  /*
   PointCloudT::Ptr cloud(new PointCloudT);
   pcl::copyPointCloud(*scene,*cloud);
   getObjectPointsOnPlane(scene, cloud);
+  */
   std::vector<Feature_cloud> scene_objects;
   {
     vector<PointCloudT::Ptr> scene_clouds;
-    segmentSceneInObjects(cloud, scene_clouds);
+    segmentSceneInObjects(scene, scene_clouds);
     getSceneSegmentFeatures(scene_clouds, scene_objects);
+    pcl::io::savePCDFile("scene.pcd", *scene_objects[0].getCloud());
   }
   pcl::visualization::PCLVisualizer::Ptr viewer (new pcl::visualization::PCLVisualizer ("segments"));
   viewer->setBackgroundColor (0, 0, 0);
-  PCL_INFO("Displaying segments for objects in the scene:\n");
-  for (int i = 0; i < scene_objects.size(); ++i) {
-    viewer->addPointCloud (scene_objects[i].getCloud(), ColorHandlerT(scene_objects[i].getCloud(), 0.0, 255.0, 0.0), scene_objects[i].name.c_str() );
-    PCL_INFO("%s\n", scene_objects[i].name.c_str());
-  }
-
   //viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1, "sample cloud");
   viewer->addCoordinateSystem (0.1);
   viewer->initCameraParameters();
   viewer->setSize(640, 480);
+  PCL_DEBUG("Displaying segments for objects in the scene:\n");
+  for (int i = 0; i < scene_objects.size(); ++i) {
+    viewer->addPointCloud (scene_objects[i].getCloud(), ColorHandlerT(scene_objects[i].getCloud(), 0.0, 255.0, 0.0), scene_objects[i].name.c_str() );
+    PCL_DEBUG("Object: %s\n", scene_objects[i].name.c_str());
+    std::cout << std::endl;
+    while (!viewer->wasStopped())
+    {
+      viewer->spinOnce();
+      boost::this_thread::sleep (boost::posix_time::microseconds (100000));
+      // Do nothing but wait.
+    }
+  }
+
 
   while (!viewer->wasStopped())
   {
@@ -176,7 +190,7 @@ void Object_recognition::displayAlignment(const PointCloudT::Ptr &scene, vector<
 
 void Object_recognition::alignment(const std::vector<Feature_cloud>& scene_objects, std::vector<Result>& objects_pose)
 {
-  double min_sample_distance_ (0.05f);
+  double min_sample_distance_ (0.1f);
   double max_correspondence_distance_ (0.01f*0.01f);
   double nr_iterations_ (500);
   pcl::SampleConsensusInitialAlignment<PointT, PointT, pcl::SHOT352> sac_ia;
@@ -186,6 +200,8 @@ void Object_recognition::alignment(const std::vector<Feature_cloud>& scene_objec
   for(size_t j=0; j<scene_objects.size(); j++)
   {
     sac_ia.setInputTarget(scene_objects[j].getCloud());
+     //pcl::io::savePCDFile("scene.pcd", *scene_objects[j].getCloud());
+     std::cout << "object feature size: " << scene_objects[j].getLocalFeatures()->size() << std::endl;
     //showPointCloud(scene_objects[j].getCloud(), "segmented object point cloud");
     sac_ia.setTargetFeatures(scene_objects[j].getLocalFeatures());
     // Find the template with the best (lowest) fitness score
@@ -195,7 +211,9 @@ void Object_recognition::alignment(const std::vector<Feature_cloud>& scene_objec
     for(size_t i=0; i<objects.size(); i++)
     {
       sac_ia.setInputCloud(objects[i].getCloud());
+      //pcl::io::savePCDFile("object.pcd", *objects[i].getCloud());
       sac_ia.setSourceFeatures(objects[i].getLocalFeatures());
+      std::cout << "object feature size: " << objects[i].getLocalFeatures()->size() << std::endl;
       pcl::PointCloud<pcl::PointXYZ>::Ptr registration_output(new PointCloudT);
       sac_ia.align (*registration_output);
       double score = (float) sac_ia.getFitnessScore(max_correspondence_distance_);
