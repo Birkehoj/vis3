@@ -4,9 +4,9 @@
 #include <pcl/surface/mls.h>
 #include <pcl/features/shot_omp.h>
 #include <pcl/features/normal_3d_omp.h>
-
+#include <pcl/common/time.h>
 Feature_cloud::Feature_cloud(CloudT::Ptr xyz, std::string name="Unknown obj", bool inMM=false)
-    : resolution_(0.001f),
+    : resolution_(0.01f),
       search_method_(new SearchMethodT),xyz_(new CloudT), features_(new FeatureCloudT),
       name(name)
 {    
@@ -20,25 +20,22 @@ Feature_cloud::Feature_cloud(CloudT::Ptr xyz, std::string name="Unknown obj", bo
             i->z *= scaleFactor; i->y *= scaleFactor; i->x *= scaleFactor;
         }
     }
-    normal_radius_ = 2*resolution_;
-    feature_radius_ = 25*resolution_;
+    feature_radius_ = 5.0f*resolution_;
+    //pcl::ScopeTime st("Feature extraction time");
     computeFeatures(tmp);
+    //PCL_INFO("time to calc./feature: %f", st.getTimeSeconds()/features_->size());
 }
 
 void Feature_cloud::computeFeatures(CloudT::Ptr xyz)
-{
-    PCL_WARN("Point cloud contains %d points\n", xyz->points.size());
+{  
     /* Down sampling to fixed resolution
      * http://pointclouds.org/documentation/tutorials/voxel_grid.php#voxelgrid
      */
-    PCL_WARN("Downsampling\n");
     {
-
         pcl::VoxelGrid<PointT> vg;
         vg.setLeafSize(resolution_, resolution_, resolution_);
         vg.setInputCloud(xyz);
         vg.filter(*xyz_);
-
         /*
         pcl::PointCloud<int> sampled_indices;
         pcl::UniformSampling<PointT> uniform_sampling;
@@ -61,34 +58,6 @@ void Feature_cloud::computeFeatures(CloudT::Ptr xyz)
         ne.setSearchSurface(xyz_);
         ne.compute(*surfNormal);
     }
-    PCL_WARN( "%d normals computed\n", surfNormal->points.size() );
-    PCL_WARN("Point cloud contains %d points\n", xyz_->points.size());
-    // Check normals for NaN or infinity
-    PCL_WARN("Checking normals...\n");
-    pcl::PointCloud<pcl::PointXYZ>::iterator j = xyz_->begin();
-    for (pcl::PointCloud<pcl::Normal>::iterator i = surfNormal->begin(); i != surfNormal->end()-1; )
-    {
-        if ( pcl_isfinite(i->normal_x) && pcl_isfinite(i->normal_y) && pcl_isfinite(i->normal_z))
-        {
-            i++;
-            j++;
-        }
-        else
-        {
-            surfNormal->erase( i );
-            xyz_->erase( j );
-            i++;
-            j++;
-            PCL_ERROR("Normal is infinite!!!\n");
-        }
-    }
-    if(xyz_->points.size() < 10) {
-        PCL_ERROR("Less then ten finite normals in cloud, cloud size=%i",surfNormal->points.size());
-        //throw 2;
-    }
-    // For debugging, output the size of both clouds
-    PCL_WARN("Point cloud contains %d points\n", xyz_->points.size());
-    PCL_WARN("Normals contains %d points\n", surfNormal->points.size());
     /* Features extraction
      * http://pointclouds.org/documentation/tutorials/correspondence_grouping.php#correspondence-grouping
      */
@@ -100,8 +69,6 @@ void Feature_cloud::computeFeatures(CloudT::Ptr xyz)
     shot.setInputNormals(surfNormal);
     shot.setInputCloud(xyz_);    
     shot.compute(*features_);
-
-    PCL_WARN("Checking feature for infinite values...\n");
     for (size_t i = 0; i < features_->size(); i++){
         for (size_t j = 0; j < features_->points[i].descriptorSize(); j++){
             if (!pcl_isfinite(features_->points[i].descriptor[j])) {
@@ -110,34 +77,4 @@ void Feature_cloud::computeFeatures(CloudT::Ptr xyz)
             }
         }
     }
-    /*
-    j = xyz_->begin();
-    for (pcl::PointCloud<FeatureT>::iterator i = features_->begin(); i != features_->end()-1; )
-    {
-        bool validDescriptor=true;
-        for (int k = 0; k < i->descriptorSize(); ++k) {
-            if(!pcl_isfinite(i->descriptor[k])) {
-                validDescriptor = false;
-                break;
-            }
-        }
-        if (validDescriptor)
-        {
-            i++;
-            j++;
-        }
-        else
-        {
-            features_->erase( i );
-            xyz_->erase( j );
-            i++;
-            j++;
-            PCL_ERROR("Feature is infinite!!!\n");
-        }
-    }
-    if(xyz_->points.size() < 10) {
-        PCL_ERROR("Less then ten finite normals in cloud, cloud size=%i",features_->points.size());
-        //throw 2;
-    }
-    */
 }

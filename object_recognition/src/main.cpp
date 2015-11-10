@@ -8,6 +8,7 @@
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <pcl/io/point_cloud_image_extractors.h>
+#include <pcl/common/time.h>
 
 using std::cout;
 using std::endl;
@@ -18,7 +19,7 @@ void readScene (char* file_name, pcl::PointCloud<PointT>::Ptr scene);
 
 int main()
 {
-  pcl::console::setVerbosityLevel(pcl::console::L_DEBUG);
+  //pcl::console::setVerbosityLevel(pcl::console::L_DEBUG);
   char* im_file_name = "../resources/scene/vis3_test_image.png";
   char *obj_folder_path("../resources/objects");
   Mat im = cv::imread(im_file_name, cv::IMREAD_COLOR);
@@ -33,6 +34,7 @@ int main()
   vector<Object_recognition::Result> object_poses;
   PCL_INFO("Determine object poses\n");
   obj_recogizer.getObjects(scene, object_poses);
+  vector<CloudT::Ptr> scene_clouds;
   obj_recogizer.displayAlignment(scene, object_poses);
   PCL_DEBUG("Done Object detection\n");
   return 0;
