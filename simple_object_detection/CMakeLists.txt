@@ -1,6 +1,6 @@
 project(simple_object_detection)
 cmake_minimum_required(VERSION 2.8)
-
+set( CMAKE_BUILD_TYPE Debug)
 find_package(PCL 1.7 REQUIRED)
 find_package( OpenCV REQUIRED )
 
