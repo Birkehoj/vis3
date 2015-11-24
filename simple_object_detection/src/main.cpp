@@ -63,11 +63,13 @@ int main()
   sac_ia.align (*registration_output);
   Eigen::Matrix4f pose = sac_ia.getFinalTransformation();
   //refineAlignment(scene_cloud, registration_output, pose);
+  /*
   pcl::IterativeClosestPoint<PointT, PointT> icp;
   icp.setInputSource(registration_output);
   icp.setInputTarget(scene_cloud);
   icp.setMaximumIterations(1000);
   icp.align(*registration_output);
+  */
   cout << "Result score: " << sac_ia.getFitnessScore() << endl;
   // Print the pose matrix and translation vector
 
@@ -85,7 +87,7 @@ int main()
   pcl::transformPointCloud (*object_cloud, *transformed_cloud, pose);
   pcl::io::savePCDFileBinary ("output.pcd", *transformed_cloud);
   displayAlignment(scene_cloud, transformed_cloud);
-  displayAlignment(scene_cloud, registration_output);
+  //displayAlignment(scene_cloud, registration_output);
   return 0;
 }
 
