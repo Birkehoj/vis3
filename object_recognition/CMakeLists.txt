@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 2.8 FATAL_ERROR)
 
 project(vis3)
-set( CMAKE_BUILD_TYPE Debug)
-
+#set( CMAKE_BUILD_TYPE Debug)
+set( CMAKE_BUILD_TYPE Release)
 find_package(PCL 1.7 REQUIRED)
 find_package( OpenCV REQUIRED )
 include_directories(
@@ -18,9 +18,11 @@ add_definitions(
 )
 
 add_executable (object_recognition
+  src/object_recognition_types.h
   src/feature_cloud.h
   src/object_recognition.h
-  src/choose_object.h
+  src/object.h
+  src/object.cpp
   src/feature_cloud.cpp
   src/object_recognition.cpp  
   src/main.cpp

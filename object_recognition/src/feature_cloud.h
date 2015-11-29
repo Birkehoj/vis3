@@ -8,7 +8,8 @@
 #include <pcl/point_cloud.h>
 #include <pcl/kdtree/kdtree_flann.h>
 #include <string>
-
+#include <pcl/visualization/pcl_visualizer.h>
+#include "object_recognition_types.h"
 class Feature_cloud
 {
 public:
@@ -22,7 +23,7 @@ public:
   typedef pcl::PointCloud<FeatureT> FeatureCloudT;
   typedef pcl::KdTreeFLANN<pcl::PointXYZ, flann::L2_Simple<float> > SearchMethodT;
 
-  Feature_cloud(CloudT::Ptr xyz, std::string, bool inMM);
+  Feature_cloud(CloudT::Ptr xyz, std::string);
 
   // Get a pointer to the cloud of feature descriptors
   FeatureCloudT::Ptr getLocalFeatures () const {
@@ -32,7 +33,8 @@ public:
     return xyz_;
   }
   std::string name;
-private:
+protected:
+  Feature_cloud(std::string name="Unknown obj");
   SearchMethodT::Ptr search_method_;
   CloudT::Ptr xyz_; // downsampled cloud
   double normal_radius_;
@@ -40,7 +42,8 @@ private:
   double resolution_;
   FeatureCloudT::Ptr features_;
   void computeFeatures(CloudT::Ptr xyz);
-  bool orient_query_normals_;
-
+private:
+  boost::shared_ptr<pcl::visualization::PCLVisualizer> normalsVis (
+      pcl::PointCloud<pcl::PointXYZ>::ConstPtr cloud, pcl::PointCloud<pcl::Normal>::ConstPtr normals);
 };
 #endif // FEATURE_CLOUD_H

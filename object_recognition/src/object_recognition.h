@@ -20,18 +20,14 @@
 #include <pcl/filters/passthrough.h>
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/features/normal_3d.h>
-#include <pcl/features/fpfh.h>
 #include <pcl/registration/ia_ransac.h>
-
-#include <feature_cloud.h>
-
+#include "feature_cloud.h"
+#include "object.h"
+#include "object_recognition_types.h"
 using std::vector;
 class Object_recognition
 {
-public:
-  typedef pcl::PointXYZ PointT;
-  typedef pcl::PointCloud<PointT> CloudT;
-  typedef pcl::visualization::PointCloudColorHandlerCustom<PointT> ColorHandlerT;
+public:  
   struct Result
   {
     Result()
@@ -39,11 +35,11 @@ public:
     std::string object_name;
     float score;
     CloudT::Ptr transformed_cloud;
-    Eigen::Matrix4f transformation;
+    Transformation transformation;
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   };
 
-  vector<Feature_cloud> getObjects() const {
+  const vector<Object>& getObjects() const {
     return objects;
   }
 
@@ -61,7 +57,7 @@ private:
   void alignment(const std::vector<Feature_cloud>& scene_objects, std::vector<Result>& objects_pose);
   void refineAlignment(const CloudT::Ptr &query, Result &res);
   std::string object_folder_path;
-  std::vector<Feature_cloud> objects;
+  std::vector<Object> objects;
   double max_z;
 };
 
