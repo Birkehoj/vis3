@@ -19,7 +19,8 @@ public:
   typedef pcl::PointCloud<pcl::Normal> SurfaceNormalT;
   //typedef feature::ECSAD<PointT>::Histogram FeatureT;
   //typedef feature::DistanceNormalHistogram<PointT,8,16>::Histogram FeatureT;
-  typedef pcl::SHOT352 FeatureT;
+  //typedef pcl::SHOT352 FeatureT;
+  typedef pcl::FPFHSignature33 FeatureT;
   typedef pcl::PointCloud<FeatureT> FeatureCloudT;
   typedef pcl::KdTreeFLANN<pcl::PointXYZ, flann::L2_Simple<float> > SearchMethodT;
 

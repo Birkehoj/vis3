@@ -29,7 +29,7 @@ const char CTRL(-28);
 const char NUM_NULL(-80);
 int main()
 {
-  pcl::console::setVerbosityLevel(pcl::console::L_DEBUG);
+  //pcl::console::setVerbosityLevel(pcl::console::L_DEBUG);
   string im_file_name = "../resources/scene/complete_scene.png";
   string obj_folder_path("../resources/objects");
 
@@ -44,13 +44,9 @@ int main()
   vector<Object_recognition::Result> object_poses;
   PCL_INFO("Determine object poses\n");
   obj_recogizer.getObjects(scene, object_poses);
-
+  obj_recogizer.displayAlignment(scene, object_poses);
   pickGraspInCloud(object_poses, obj_recogizer.getObjects(), file_name);
   pickGraspInImage(im, object_poses, obj_recogizer.getObjects());
-
-  obj_recogizer.displayAlignment(scene, object_poses);
-  PCL_DEBUG("Done Object detection\n");
-
   return 0;
 }
 
@@ -107,7 +103,7 @@ void keyboardEventOccurred (const pcl::visualization::KeyboardEvent &event,
     {
       grasp_picked = true;
     }
-    else if( key_stroke == "KP_0")
+    else if( key_stroke == "KP_0" || key_stroke == "KP_Insert")
     {
       aborted = true;
     }
@@ -154,7 +150,6 @@ void pickGraspInCloud(const vector<Object_recognition::Result>& results, const v
   viewer->registerKeyboardCallback (keyboardEventOccurred, (void*)&viewer);
   while (!viewer->wasStopped() && !aborted)
   {
-    viewer->spinOnce();
     const Object& object = findObject(objects, results[result_i].object_name);
     const vector<Transformation>& grasps = object.getGrasps();
     grasp_size = grasps.size();
@@ -187,6 +182,7 @@ void pickGraspInCloud(const vector<Object_recognition::Result>& results, const v
     }
     string selected_msg = "Selected: " + results[result_i].object_name;
     viewer->addText(selected_msg,10, 15, 20, 1.0, 1.0, 0.0);
+    viewer->spinOnce(1, true);
     if(grasp_picked)
     {
       Transformation grasp_transformation = results[result_i].transformation * grasps[grasp_i];
@@ -317,7 +313,6 @@ void pickGraspInImage(Mat scene_im, const vector<Object_recognition::Result>& re
     {
       grasp_i = 0;
     }
-    cout << "grasp i " << grasp_i << endl;
     boost::this_thread::sleep (boost::posix_time::microseconds (100000));
   }
   if(grasp_picked)

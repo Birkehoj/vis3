@@ -163,10 +163,10 @@ void Object_recognition::displayAlignment(const CloudT::Ptr &scene, const vector
     char buffer [10];
     sprintf(buffer, "%i", i);
     string str(buffer);
-    string new_object_name = results[i].object_name + str;
-    viewer->addPointCloud (results[i].transformed_cloud, ColorHandlerT(results[i].transformed_cloud, 0.0, 255.0, 0.0), results[i].object_name.c_str() );
-    viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 2, results[i].object_name.c_str());
-    PCL_INFO("%s\n", results[i].object_name.c_str());
+    string new_object_name = results[i].object_name + "_" + str;
+    viewer->addPointCloud (results[i].transformed_cloud, ColorHandlerT(results[i].transformed_cloud, 0.0, 255.0, 0.0), new_object_name );
+    viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 2, new_object_name);
+    PCL_INFO("%s\n", new_object_name.c_str()); cout << endl;
   }
   //viewer->addCoordinateSystem (0.1);
   viewer->initCameraParameters();
@@ -205,17 +205,15 @@ void Object_recognition::displayAlignment(const CloudT::Ptr &scene, const CloudT
 void Object_recognition::alignment(const std::vector<Feature_cloud>& scene_objects, std::vector<Result>& objects_pose)
 {
   pcl::ScopeTime st("Object recognition");
-  pcl::SampleConsensusInitialAlignment<PointT, PointT, pcl::SHOT352> sac_ia;
-  sac_ia.setMinSampleDistance (0.1f);
-  sac_ia.setMaxCorrespondenceDistance (0.01f*0.01f);
+  pcl::SampleConsensusInitialAlignment<PointT, PointT, Feature_cloud::FeatureT> sac_ia;
+  sac_ia.setMinSampleDistance (0.025f);
+  sac_ia.setMaxCorrespondenceDistance (0.01*0.01f);
   sac_ia.setMaximumIterations (3000);
   sac_ia.setRANSACIterations(50000);
   for(size_t j=0; j<scene_objects.size(); j++)
   {
     sac_ia.setInputTarget(scene_objects[j].getCloud());
-    //pcl::io::savePCDFile("scene.pcd", *scene_objects[j].getCloud());
     std::cout << "object feature size: " << scene_objects[j].getLocalFeatures()->size() << std::endl;
-    //showPointCloud(scene_objects[j].getCloud(), "segmented object point cloud");
     sac_ia.setTargetFeatures(scene_objects[j].getLocalFeatures());
     // Find the template with the best (lowest) fitness score
     PCL_INFO("%s :\n", scene_objects[j].name.c_str());
@@ -225,13 +223,12 @@ void Object_recognition::alignment(const std::vector<Feature_cloud>& scene_objec
     for(size_t i=0; i<objects.size(); i++)
     {
       sac_ia.setInputCloud(objects[i].getCloud());
-      //pcl::io::savePCDFile("object.pcd", *objects[i].getCloud());
       sac_ia.setSourceFeatures(objects[i].getLocalFeatures());
-      //std::cout << "object feature size: " << objects[i].getLocalFeatures()->size() << std::endl;
       pcl::PointCloud<pcl::PointXYZ>::Ptr registration_output(new CloudT);
       sac_ia.align (*registration_output);
       double score = (double) sac_ia.getFitnessScore(sac_ia.getMaxCorrespondenceDistance());
-      PCL_INFO("%s 's score: %f \n",objects[i].name.c_str(), score);
+
+      PCL_INFO("%s 's score: %f \n",objects[i].name.c_str(), score); cout << endl;
       if (score < best_object_match.score)
       {
         best_object_i = i;
@@ -246,7 +243,7 @@ void Object_recognition::alignment(const std::vector<Feature_cloud>& scene_objec
       //displayAlignment(scene_objects[j].getCloud(), best_object_match.transformed_cloud);
       refineAlignment(scene_objects[j].getCloud(), best_object_match);
       objects_pose.push_back(best_object_match);
-      displayAlignment(scene_objects[j].getCloud(), best_object_match.transformed_cloud);
+      //displayAlignment(scene_objects[j].getCloud(), best_object_match.transformed_cloud);
     }
   }
 }
@@ -257,7 +254,7 @@ Object_recognition::refineAlignment(const CloudT::Ptr &query, Result &res)
   pcl::IterativeClosestPoint<PointT,PointT> icp;
   icp.setInputSource(res.transformed_cloud);
   icp.setInputTarget(query);
-  icp.setMaximumIterations(500);
+  icp.setMaximumIterations(1000);
   pcl::PointCloud<PointT>::Ptr tmp(new CloudT);
   icp.align(*tmp);
   if(icp.hasConverged()) {

@@ -31,7 +31,7 @@ void Object::setGrasps(const string& object_folder_path)
           fs >> grasp(i,j);
         }
       }
-      cout << endl << name << "'s grasp = " << endl << grasp << endl;
+      //cout << endl << name << "'s grasp = " << endl << grasp << endl;
       grasps.push_back(grasp);
     }
     grasps.pop_back(); // one too much added??
