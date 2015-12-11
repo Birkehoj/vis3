@@ -9,6 +9,7 @@ Object_recognition::Object_recognition(const std::string object_folder_path)
   : object_folder_path(object_folder_path)
 {    
   setObjects();
+  setObjectsSaC();
 }
 
 void Object_recognition::setObjects()
@@ -201,44 +202,57 @@ void Object_recognition::displayAlignment(const CloudT::Ptr &scene, const CloudT
   viewer->close();
   // Show alignmen
 }
+/* Initializes vector with initial alignment objects to avoid recal
+ *
+ */
+void Object_recognition::setObjectsSaC()
+{
+  sac_ia_list.resize(objects.size());
+  for(size_t i=0; i<objects.size(); i++)
+  {
+    pcl::SampleConsensusInitialAlignment<PointT, PointT, Feature_cloud::FeatureT> sac_ia;
+    sac_ia.setMinSampleDistance (0.025f);
+    sac_ia.setCorrespondenceRandomness(10); // nearst neighbors to pick randomly between
+    sac_ia.setMaxCorrespondenceDistance (0.01*0.01f);
+    sac_ia.setMaximumIterations (3000);
+    sac_ia.setInputSource(objects[i].getCloud());
+    sac_ia.setSourceFeatures(objects[i].getLocalFeatures());    
+    //boost::shared_ptr<pcl::SampleConsensusInitialAlignment<PointT, PointT, Feature_cloud::FeatureT>::HuberPenalty> error_functor(new pcl::SampleConsensusInitialAlignment<PointT, PointT, Feature_cloud::FeatureT>::HuberPenalty(100.0f));
+    //boost::shared_ptr<pcl::SampleConsensusInitialAlignment<PointT, PointT, Feature_cloud::FeatureT>::TruncatedError> error_functor(new pcl::SampleConsensusInitialAlignment<PointT, PointT, Feature_cloud::FeatureT>::TruncatedError(100.0f));
+    // sac_ia.setErrorFunction(error_functor); // works different than default
+    pcl::SampleConsensusInitialAlignment<PointT, PointT, Feature_cloud::FeatureT>::KdTreeReciprocalPtr search_tree(new pcl::SampleConsensusInitialAlignment<PointT, PointT, Feature_cloud::FeatureT>::KdTreeReciprocal);
+    sac_ia.setSearchMethodSource(search_tree, true);
+    sac_ia_list[i] = sac_ia;
+  }
+}
 
 void Object_recognition::alignment(const std::vector<Feature_cloud>& scene_objects, std::vector<Result>& objects_pose)
 {
   pcl::ScopeTime st("Object recognition");
-  pcl::SampleConsensusInitialAlignment<PointT, PointT, Feature_cloud::FeatureT> sac_ia;
-  sac_ia.setMinSampleDistance (0.025f);
-  sac_ia.setMaxCorrespondenceDistance (0.01*0.01f);
-  sac_ia.setMaximumIterations (3000);
-  sac_ia.setRANSACIterations(50000);
   for(size_t j=0; j<scene_objects.size(); j++)
   {
-    sac_ia.setInputTarget(scene_objects[j].getCloud());
-    std::cout << "object feature size: " << scene_objects[j].getLocalFeatures()->size() << std::endl;
-    sac_ia.setTargetFeatures(scene_objects[j].getLocalFeatures());
     // Find the template with the best (lowest) fitness score
     PCL_INFO("%s :\n", scene_objects[j].name.c_str());
     Result best_object_match;
     best_object_match.score = std::numeric_limits<float>::infinity ();
-    int best_object_i = 0;
+    best_object_match.transformation = Transformation::Identity(4,4);
     for(size_t i=0; i<objects.size(); i++)
     {
-      sac_ia.setInputCloud(objects[i].getCloud());
-      sac_ia.setSourceFeatures(objects[i].getLocalFeatures());
+      sac_ia_list[i].setInputTarget(scene_objects[j].getCloud());
+      sac_ia_list[i].setTargetFeatures(scene_objects[j].getLocalFeatures());
       pcl::PointCloud<pcl::PointXYZ>::Ptr registration_output(new CloudT);
-      sac_ia.align (*registration_output);
-      double score = (double) sac_ia.getFitnessScore(sac_ia.getMaxCorrespondenceDistance());
-
+      sac_ia_list[i].align (*registration_output);
+      double score = (double) sac_ia_list[i].getFitnessScore(sac_ia_list[i].getMaxCorrespondenceDistance());
       PCL_INFO("%s 's score: %f \n",objects[i].name.c_str(), score); cout << endl;
       if (score < best_object_match.score)
       {
-        best_object_i = i;
         best_object_match.score = score;
-        best_object_match.transformation = sac_ia.getFinalTransformation();
+        best_object_match.transformation = sac_ia_list[i].getFinalTransformation();
         best_object_match.transformed_cloud = registration_output;
         best_object_match.object_name = objects[i].name;
       }
     }
-    if(best_object_match.score < 0.00005 || true)
+    if(best_object_match.score < 0.000036 )
     {
       //displayAlignment(scene_objects[j].getCloud(), best_object_match.transformed_cloud);
       refineAlignment(scene_objects[j].getCloud(), best_object_match);
@@ -254,7 +268,7 @@ Object_recognition::refineAlignment(const CloudT::Ptr &query, Result &res)
   pcl::IterativeClosestPoint<PointT,PointT> icp;
   icp.setInputSource(res.transformed_cloud);
   icp.setInputTarget(query);
-  icp.setMaximumIterations(1000);
+  icp.setMaximumIterations(50);
   pcl::PointCloud<PointT>::Ptr tmp(new CloudT);
   icp.align(*tmp);
   if(icp.hasConverged()) {

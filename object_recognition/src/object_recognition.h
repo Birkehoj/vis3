@@ -49,15 +49,17 @@ public:
   void displayAlignment(const CloudT::Ptr& scene, const vector<Result> &results);
   void displayAlignment(const CloudT::Ptr &scene, const CloudT::Ptr &aligned_object);
   void displaySegments(const CloudT::Ptr& scene);
-  void segmentSceneInObjects(const CloudT::Ptr& cloud, std::vector<CloudT::Ptr> &scene_objects);
-  void setObjects();
+  void segmentSceneInObjects(const CloudT::Ptr& cloud, std::vector<CloudT::Ptr> &scene_objects);  
 private:
   bool getObjectPointsOnPlane(const CloudT::Ptr &scene, CloudT::Ptr &objects_pose);
   void getSceneSegmentFeatures(const std::vector<CloudT::Ptr> &scene_clouds, std::vector<Feature_cloud>& scene_objects);
   void alignment(const std::vector<Feature_cloud>& scene_objects, std::vector<Result>& objects_pose);
   void refineAlignment(const CloudT::Ptr &query, Result &res);
+  void setObjectsSaC();
+  void setObjects();
   std::string object_folder_path;
   std::vector<Object> objects;
+  vector<pcl::SampleConsensusInitialAlignment<PointT, PointT, Feature_cloud::FeatureT> > sac_ia_list;
   double max_z;
 };
 

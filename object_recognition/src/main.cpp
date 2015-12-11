@@ -30,11 +30,13 @@ const char NUM_NULL(-80);
 int main()
 {
   //pcl::console::setVerbosityLevel(pcl::console::L_DEBUG);
+  //string im_file_name = "../resources/scene/five_objects_with_false/five_objects_with_false10.png";
   string im_file_name = "../resources/scene/complete_scene.png";
   string obj_folder_path("../resources/objects");
 
   Mat im = cv::imread(im_file_name, cv::IMREAD_COLOR);
   cout << "Starting object detection" << endl;
+  //string file_name = "../resources/scene/five_objects_with_false/five_objects_with_false10.pcd";
   string file_name = "../resources/scene/complete_scene.pcd";
   pcl::PointCloud<PointT>::Ptr scene(new pcl::PointCloud<PointT>);
   readScene(file_name, scene);
@@ -153,7 +155,6 @@ void pickGraspInCloud(const vector<Object_recognition::Result>& results, const v
     const Object& object = findObject(objects, results[result_i].object_name);
     const vector<Transformation>& grasps = object.getGrasps();
     grasp_size = grasps.size();
-    cout << "grasp i " << grasp_i << endl;
     for (int i = 0; i < grasps.size(); ++i) {
       int line_width = (i == grasp_i ? 3 : 1);
       const Transformation& grasp_tf = grasps[i];
