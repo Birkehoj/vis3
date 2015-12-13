@@ -17,7 +17,7 @@
 using namespace std;
 using namespace cv;
 void readScene (string file_name, pcl::PointCloud<PointT>::Ptr scene);
-void pickGraspInImage(Mat scene_im, const vector<Object_recognition::Result>& results, const vector<Object>& objects);
+void pickGraspInImage(Mat scene_im, const vector<vector<Object_recognition::Result> > &results, const vector<Object>& objects);
 void pickGraspInCloud(const vector<Object_recognition::Result>& results, const vector<Object>& objects, const string &scene_path_name);
 
 const char ESC(27);
@@ -31,24 +31,27 @@ int main()
 {
   //pcl::console::setVerbosityLevel(pcl::console::L_DEBUG);
   //string im_file_name = "../resources/scene/five_objects_with_false/five_objects_with_false10.png";
-  string im_file_name = "../resources/scene/complete_scene.png";
+  string im_file_name = "../resources/scene/complete_scene2.png";
+  //string im_file_name = "../resources/scene/easy_scene.png";
   string obj_folder_path("../resources/objects");
 
   Mat im = cv::imread(im_file_name, cv::IMREAD_COLOR);
   cout << "Starting object detection" << endl;
   //string file_name = "../resources/scene/five_objects_with_false/five_objects_with_false10.pcd";
-  string file_name = "../resources/scene/complete_scene.pcd";
+  string file_name = "../resources/scene/complete_scene2.pcd";
+  //string file_name = "../resources/scene/easy_scene.pcd";
   pcl::PointCloud<PointT>::Ptr scene(new pcl::PointCloud<PointT>);
   readScene(file_name, scene);
   std::vector<CloudT::Ptr> scene_objects;
   Object_recognition obj_recogizer(obj_folder_path);
   //obj_recogizer.displaySegments(scene);
-  vector<Object_recognition::Result> object_poses;
+  vector<vector<Object_recognition::Result> > object_poses;
   PCL_INFO("Determine object poses\n");
   obj_recogizer.getObjects(scene, object_poses);
   obj_recogizer.displayAlignment(scene, object_poses);
-  pickGraspInCloud(object_poses, obj_recogizer.getObjects(), file_name);
-  pickGraspInImage(im, object_poses, obj_recogizer.getObjects());
+  //pickGraspInCloud(object_poses, obj_recogizer.getObjects(), file_name);
+  vector<Object> objects = obj_recogizer.getObjects();
+  pickGraspInImage(im, object_poses, objects);
   return 0;
 }
 
@@ -75,6 +78,160 @@ const Object& findObject(const vector<Object>& objects, const string& target_nam
       return objects[i];
     }
   }
+}
+
+inline void circularOverflowCorrect(int& i, const int& size)
+{
+  if(i < 0)
+  {
+    i = size - 1;
+  }
+  else if(i == size)
+  {
+    i = 0;
+  }
+}
+
+void pickGraspInImage(Mat scene_im, const vector<vector<Object_recognition::Result> >& results, const vector<Object>& objects)
+{
+  string window_name("Grasp picking interface");
+  namedWindow(window_name, CV_WINDOW_AUTOSIZE);
+  // setup camera
+  cv::Mat camera_matrix = cv::Mat::zeros(3,3,CV_64F);
+  camera_matrix.at<double>(0,0) = 525.0;
+  camera_matrix.at<double>(0,2) = 319.5;
+  camera_matrix.at<double>(1,1) = 525.0;
+  camera_matrix.at<double>(1,2) = 239.5;
+  camera_matrix.at<double>(2,2) = 1;
+  cv::Mat dist_doeffs = cv::Mat::zeros(4,1,CV_64F);
+  bool grasp_picked = false, aborted = false, object_selected = false;
+  int scene_obj_i = 0, object_i = 0, grasp_i = 0;
+  while(!grasp_picked && !aborted)
+  {
+    // convert transformation to opencv format
+    Transformation transformation = results[scene_obj_i][object_i].transformation;
+    cv::Mat_<double> R(3,3,cv::DataType<double>::type);
+    for (int i = 0; i < 3; ++i) {
+      for (int j = 0; j < 3; ++j) {
+        R.at<double>(i,j) = transformation(i,j);
+      }
+    }
+    cv::Mat rvec(3,1,cv::DataType<double>::type);
+    cv::Rodrigues(R, rvec);
+    cv::Mat tvec(3,1,cv::DataType<double>::type);
+    for (int i = 0; i < 3; ++i) {
+      tvec.at<double>(i,0) = transformation(i,3);
+    }
+
+    Mat axis_im = scene_im.clone();
+    CloudT axis_cloud; getAxisCloud(axis_cloud);
+    const Object& object = findObject(objects, results[scene_obj_i][object_i].object_name);
+    const vector<Transformation>& grasps = object.getGrasps();
+    if(object_selected)
+    {
+      for (int i = 0; i < grasps.size(); ++i)
+      {
+        int line_width = (i == grasp_i ? 2 : 1);
+        const Transformation& grasp_tf = grasps[i];
+        CloudT grasp_cloud;
+        pcl::transformPointCloud(axis_cloud, grasp_cloud, grasp_tf);
+        vector<Point3d> axis_pts(4);
+        for (int i = 0; i < 4; ++i) {
+          axis_pts[i] = Point3d(grasp_cloud[i].x, grasp_cloud[i].y, grasp_cloud[i].z);
+        }
+        std::vector<cv::Point2d> projectedAxisPoints;
+        cv::projectPoints(axis_pts, rvec, tvec, camera_matrix, dist_doeffs, projectedAxisPoints);
+        line(axis_im,projectedAxisPoints[0], projectedAxisPoints[1], Scalar( 0, 0, 255 ), line_width, 8 );
+        line(axis_im,projectedAxisPoints[0], projectedAxisPoints[2], Scalar( 0, 255, 0 ), line_width, 8 );
+        line(axis_im,projectedAxisPoints[0], projectedAxisPoints[3], Scalar( 255, 0, 0), line_width, 8 );
+      }
+    }
+    else
+    {
+      int line_width = 2;
+      vector<Point3d> axis_pts(4);
+      for (int i = 0; i < 4; ++i) {
+        axis_pts[i] = Point3d(axis_cloud[i].x, axis_cloud[i].y, axis_cloud[i].z);
+      }
+      std::vector<cv::Point2d> projectedAxisPoints;
+      cv::projectPoints(axis_pts, rvec, tvec, camera_matrix, dist_doeffs, projectedAxisPoints);
+      line(axis_im,projectedAxisPoints[0], projectedAxisPoints[1], Scalar( 0, 0, 255 ), line_width, 8 );
+      line(axis_im,projectedAxisPoints[0], projectedAxisPoints[2], Scalar( 0, 255, 0 ), line_width, 8 );
+      line(axis_im,projectedAxisPoints[0], projectedAxisPoints[3], Scalar( 255, 0, 0), line_width, 8 );
+    }
+
+
+    string selected_msg = "Selected: " + results[scene_obj_i][object_i].object_name;
+    cv::putText(axis_im, selected_msg, Point(20, axis_im.rows - 20), FONT_HERSHEY_PLAIN, 1.3, Scalar(0,255,255), 2,8);
+    imshow(window_name,axis_im);
+    cout << selected_msg << " with object_i= " << object_i << " score= " << results[scene_obj_i][object_i].score << endl;
+
+    char key_stroke = waitKey();
+    switch (key_stroke) {
+    case CTRL:
+      if(object_selected)
+      {
+        Transformation grasp_transformation = results[scene_obj_i][object_i].transformation * (object.getGrasps()[grasp_i]);
+        string pick_up_msg = "Grasping: " + results[scene_obj_i][object_i].object_name;
+        cout << pick_up_msg << ", from this pose: " << endl;
+        cout << grasp_transformation << endl;
+        cv::putText(axis_im, "Grasping", Point(20, axis_im.rows - 45), FONT_HERSHEY_PLAIN, 1.3, Scalar(0,0,255), 2,8);
+        imshow(window_name,axis_im);
+        grasp_picked = true;
+      }
+      else
+      {
+        object_selected = true;
+      }
+      break;
+    case NUM_NULL:
+      aborted = true;
+      break;
+    case UP_ARROW:
+      scene_obj_i++;
+      if(object_selected)
+        grasp_i = 0;
+      else
+        object_i = 0;
+      break;
+    case DOWN_ARROW:
+      scene_obj_i--;
+      if(object_selected)
+        grasp_i = 0;
+      else
+        object_i = 0;
+      break;
+    case RIGHT_ARROW:
+      if(object_selected)
+        grasp_i++;
+      else
+        object_i++;
+      break;
+    case LEFT_ARROW:
+      if(object_selected)
+        grasp_i--;
+      else
+        object_i--;
+      break;
+    default:
+      break;
+    }
+    // circular iterate through
+    circularOverflowCorrect(grasp_i, grasps.size());
+    circularOverflowCorrect(object_i, results[scene_obj_i].size());
+    circularOverflowCorrect(scene_obj_i, results.size());
+    boost::this_thread::sleep (boost::posix_time::microseconds (100000));
+  }
+  if(grasp_picked)
+  {
+    while(cv::waitKey() != NUM_NULL)
+    {
+      boost::this_thread::sleep (boost::posix_time::microseconds (100000));
+      break;
+    }
+  }
+  destroyWindow(window_name);
+  //imwrite("axis_on_vanila.png", axis_im);
 }
 
 int result_size, grasp_size;
@@ -207,125 +364,6 @@ void pickGraspInCloud(const vector<Object_recognition::Result>& results, const v
   }
   // viewer->saveScreenshot("Grasp image");
   viewer->close();
-}
-
-void pickGraspInImage(Mat scene_im, const vector<Object_recognition::Result>& results, const vector<Object>& objects)
-{
-  string window_name("Grasp picking interface");
-  namedWindow(window_name, CV_WINDOW_AUTOSIZE);
-  // setup camera
-  cv::Mat camera_matrix = cv::Mat::zeros(3,3,CV_64F);
-  camera_matrix.at<double>(0,0) = 525.0;
-  camera_matrix.at<double>(0,2) = 319.5;
-  camera_matrix.at<double>(1,1) = 525.0;
-  camera_matrix.at<double>(1,2) = 239.5;
-  camera_matrix.at<double>(2,2) = 1;
-  cv::Mat dist_doeffs = cv::Mat::zeros(4,1,CV_64F);
-  bool grasp_picked = false, aborted = false;
-  int result_i = 0, grasp_i = 0;
-  while(!grasp_picked && !aborted)
-  {
-    // convert transformation to opencv format
-    Transformation transformation = results[result_i].transformation;
-    cv::Mat_<double> R(3,3,cv::DataType<double>::type);
-    for (int i = 0; i < 3; ++i) {
-      for (int j = 0; j < 3; ++j) {
-        R.at<double>(i,j) = transformation(i,j);
-      }
-    }
-    cv::Mat rvec(3,1,cv::DataType<double>::type);
-    cv::Rodrigues(R, rvec);
-    cv::Mat tvec(3,1,cv::DataType<double>::type);
-    for (int i = 0; i < 3; ++i) {
-      tvec.at<double>(i,0) = transformation(i,3);
-    }
-
-    Mat axis_im = scene_im.clone();
-    CloudT axis_cloud; getAxisCloud(axis_cloud);
-    const Object& object = findObject(objects, results[result_i].object_name);
-
-    const vector<Transformation>& grasps = object.getGrasps();
-    for (int i = 0; i < grasps.size(); ++i)
-    {
-      int line_width = (i == grasp_i ? 2 : 1);
-      const Transformation& grasp_tf = grasps[i];
-      CloudT grasp_cloud;
-      pcl::transformPointCloud(axis_cloud, grasp_cloud, grasp_tf);
-      vector<Point3d> axis_pts(4);
-      for (int i = 0; i < 4; ++i) {
-        axis_pts[i] = Point3d(grasp_cloud[i].x, grasp_cloud[i].y, grasp_cloud[i].z);
-      }
-      std::vector<cv::Point2d> projectedAxisPoints;
-      cv::projectPoints(axis_pts, rvec, tvec, camera_matrix, dist_doeffs, projectedAxisPoints);
-      line(axis_im,projectedAxisPoints[0], projectedAxisPoints[1], Scalar( 0, 0, 255 ), line_width, 8 );
-      line(axis_im,projectedAxisPoints[0], projectedAxisPoints[2], Scalar( 0, 255, 0 ), line_width, 8 );
-      line(axis_im,projectedAxisPoints[0], projectedAxisPoints[3], Scalar( 255, 0, 0), line_width, 8 );
-    }
-    string selected_msg = "Selected: " + results[result_i].object_name;
-    cv::putText(axis_im, selected_msg, Point(20, axis_im.rows - 20), FONT_HERSHEY_PLAIN, 1.3, Scalar(0,255,255), 2,8);
-    imshow(window_name,axis_im);
-    char key_stroke = waitKey();
-    switch (key_stroke) {
-    case CTRL:
-      {
-      Transformation grasp_transformation = results[result_i].transformation * grasps[grasp_i];
-      string pick_up_msg = "Grasping: " + results[result_i].object_name;
-      cout << pick_up_msg << ", from this pose: " << endl;
-      cout << grasp_transformation << endl;
-      cv::putText(axis_im, "Grasping", Point(20, axis_im.rows - 45), FONT_HERSHEY_PLAIN, 1.3, Scalar(0,0,255), 2,8);
-      imshow(window_name,axis_im);
-      grasp_picked = true;
-      }
-      break;
-    case NUM_NULL:
-      aborted = true;
-      break;
-    case UP_ARROW:
-      result_i++;
-      grasp_i = 0;
-      break;
-    case DOWN_ARROW:
-      result_i--;
-      grasp_i = 0;
-      break;
-    case RIGHT_ARROW:
-      grasp_i++;
-      break;
-    case LEFT_ARROW:
-      grasp_i--;
-      break;
-    default:
-      break;
-    }
-    // circular iterate through
-    if(result_i < 0)
-    {
-      result_i = results.size() - 1;
-    }
-    else if(result_i == results.size())
-    {
-      result_i = 0;
-    }
-    if(grasp_i < 0)
-    {
-      grasp_i = grasps.size() - 1;
-    }
-    else if(grasp_i == grasps.size())
-    {
-      grasp_i = 0;
-    }
-    boost::this_thread::sleep (boost::posix_time::microseconds (100000));
-  }
-  if(grasp_picked)
-  {
-    while(cv::waitKey() != NUM_NULL)
-    {
-      boost::this_thread::sleep (boost::posix_time::microseconds (100000));
-      break;
-    }
-  }
-  destroyWindow(window_name);
-  //imwrite("axis_on_vanila.png", axis_im);
 }
 
 void readScene (string file_name, pcl::PointCloud<PointT>::Ptr scene)

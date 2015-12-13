@@ -60,7 +60,6 @@ void Feature_cloud::computeFeatures(CloudT::Ptr xyz)
   pcl::FPFHEstimation<pcl::PointXYZ, pcl::Normal, pcl::FPFHSignature33> fpfh_est;
   fpfh_est.setInputCloud (xyz_);
   fpfh_est.setInputNormals (surfNormal);
-  //fpfh_est.setSearchMethod (search_method_);
   fpfh_est.setRadiusSearch (feature_radius_);
   fpfh_est.compute (*features_);
 

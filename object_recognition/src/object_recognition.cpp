@@ -5,6 +5,7 @@
 #include <pcl/registration/icp.h>
 #include <stdlib.h> // for itoa
 #include <pcl/common/time.h>
+#include <algorithm>
 Object_recognition::Object_recognition(const std::string object_folder_path)
   : object_folder_path(object_folder_path)
 {    
@@ -39,7 +40,7 @@ void Object_recognition::setObjects()
   closedir (pDir);
 }
 
-void Object_recognition::getObjects(const CloudT::Ptr& scene, std::vector<Result>& object_poses)
+void Object_recognition::getObjects(const CloudT::Ptr& scene, vector<vector<Result> >& object_poses)
 {    
   vector<Feature_cloud> scene_objects;
   {
@@ -153,26 +154,26 @@ void Object_recognition::displaySegments(const CloudT::Ptr &scene)
   viewer->close();
 }
 
-void Object_recognition::displayAlignment(const CloudT::Ptr &scene, const vector<Result> &results)
+void Object_recognition::displayAlignment(const CloudT::Ptr &scene, const vector<vector<Result> > &results)
 {
   pcl::visualization::PCLVisualizer::Ptr viewer (new pcl::visualization::PCLVisualizer ("alignment"));
   viewer->setBackgroundColor (0, 0, 0);
   viewer->addPointCloud<PointT> (scene, ColorHandlerT(scene, 50.0, 50.0, 50.0), "scene cloud");
   viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 0.5, "scene cloud");
   PCL_INFO("Displaying alignment for objects in the scene:\n");
+  //viewer->addCoordinateSystem (0.1);
+  viewer->initCameraParameters();
+  viewer->setSize(640, 480);
+  viewer->setCameraPosition(0, 0, 0, 0, -1, 0);  
   for (int i = 0; i < results.size(); ++i) {
     char buffer [10];
     sprintf(buffer, "%i", i);
     string str(buffer);
-    string new_object_name = results[i].object_name + "_" + str;
-    viewer->addPointCloud (results[i].transformed_cloud, ColorHandlerT(results[i].transformed_cloud, 0.0, 255.0, 0.0), new_object_name );
+    string new_object_name = results[i][0].object_name + "_" + str;
+    viewer->addPointCloud (results[i][0].transformed_cloud, ColorHandlerT(results[i][0].transformed_cloud, 0.0, 255.0, 0.0), new_object_name );
     viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 2, new_object_name);
     PCL_INFO("%s\n", new_object_name.c_str()); cout << endl;
   }
-  //viewer->addCoordinateSystem (0.1);
-  viewer->initCameraParameters();
-  viewer->setSize(640, 480);
-  viewer->setCameraPosition(0, 0, 0, 0, -1, 0);
   while (!viewer->wasStopped())
   {
     viewer->spinOnce();
@@ -199,9 +200,11 @@ void Object_recognition::displayAlignment(const CloudT::Ptr &scene, const CloudT
     boost::this_thread::sleep (boost::posix_time::microseconds (100000));
     // Do nothing but wait.
   }
+  viewer->saveScreenshot("alignmet.png");
   viewer->close();
-  // Show alignmen
+  // Show alignment
 }
+
 /* Initializes vector with initial alignment objects to avoid recal
  *
  */
@@ -216,7 +219,7 @@ void Object_recognition::setObjectsSaC()
     sac_ia.setMaxCorrespondenceDistance (0.01*0.01f);
     sac_ia.setMaximumIterations (3000);
     sac_ia.setInputSource(objects[i].getCloud());
-    sac_ia.setSourceFeatures(objects[i].getLocalFeatures());    
+    sac_ia.setSourceFeatures(objects[i].getLocalFeatures());
     //boost::shared_ptr<pcl::SampleConsensusInitialAlignment<PointT, PointT, Feature_cloud::FeatureT>::HuberPenalty> error_functor(new pcl::SampleConsensusInitialAlignment<PointT, PointT, Feature_cloud::FeatureT>::HuberPenalty(100.0f));
     //boost::shared_ptr<pcl::SampleConsensusInitialAlignment<PointT, PointT, Feature_cloud::FeatureT>::TruncatedError> error_functor(new pcl::SampleConsensusInitialAlignment<PointT, PointT, Feature_cloud::FeatureT>::TruncatedError(100.0f));
     // sac_ia.setErrorFunction(error_functor); // works different than default
@@ -226,16 +229,18 @@ void Object_recognition::setObjectsSaC()
   }
 }
 
-void Object_recognition::alignment(const std::vector<Feature_cloud>& scene_objects, std::vector<Result>& objects_pose)
+void Object_recognition::alignment(const std::vector<Feature_cloud>& scene_objects, vector<vector<Result> >& objects_pose)
 {
   pcl::ScopeTime st("Object recognition");
+  objects_pose.resize(scene_objects.size());
   for(size_t j=0; j<scene_objects.size(); j++)
   {
     // Find the template with the best (lowest) fitness score
     PCL_INFO("%s :\n", scene_objects[j].name.c_str());
-    Result best_object_match;
-    best_object_match.score = std::numeric_limits<float>::infinity ();
-    best_object_match.transformation = Transformation::Identity(4,4);
+    Result object_match;
+    object_match.score = std::numeric_limits<float>::infinity ();
+    object_match.transformation = Transformation::Identity(4,4);
+    vector<Result> results(objects.size());
     for(size_t i=0; i<objects.size(); i++)
     {
       sac_ia_list[i].setInputTarget(scene_objects[j].getCloud());
@@ -243,23 +248,90 @@ void Object_recognition::alignment(const std::vector<Feature_cloud>& scene_objec
       pcl::PointCloud<pcl::PointXYZ>::Ptr registration_output(new CloudT);
       sac_ia_list[i].align (*registration_output);
       double score = (double) sac_ia_list[i].getFitnessScore(sac_ia_list[i].getMaxCorrespondenceDistance());
-      PCL_INFO("%s 's score: %f \n",objects[i].name.c_str(), score); cout << endl;
-      if (score < best_object_match.score)
-      {
-        best_object_match.score = score;
-        best_object_match.transformation = sac_ia_list[i].getFinalTransformation();
-        best_object_match.transformed_cloud = registration_output;
-        best_object_match.object_name = objects[i].name;
-      }
+      object_match.score = score;
+      object_match.transformation = sac_ia_list[i].getFinalTransformation();
+      object_match.transformed_cloud = registration_output;
+      object_match.object_name = objects[i].name;
+      refineAlignment(scene_objects[j], object_match, objects[i]);
+      results[i] = object_match;
+      /*
+      if(objects[i].name == "YellowSaltCube_25k_tex" && j == 2)
+        displayAlignment(scene_objects[j].getCloud(), object_match.transformed_cloud);
+        */
     }
-    if(best_object_match.score < 0.000036 )
-    {
-      //displayAlignment(scene_objects[j].getCloud(), best_object_match.transformed_cloud);
-      refineAlignment(scene_objects[j].getCloud(), best_object_match);
-      objects_pose.push_back(best_object_match);
-      //displayAlignment(scene_objects[j].getCloud(), best_object_match.transformed_cloud);
-    }
+    std::sort(results.begin(), results.end(), Object_recognition::compareAlignmentResults); // sort after assending score
+    objects_pose[j] = results;
   }
+}
+
+void
+Object_recognition::refineAlignment(const Feature_cloud &query, Result &res, const Object &source)
+{
+  pcl::IterativeClosestPoint<PointT,PointT> icp;
+  icp.setInputSource(source.getCloud());
+  icp.setInputTarget(query.getCloud());
+  icp.setMaximumIterations(50);
+  icp.setMaxCorrespondenceDistance(0.005f);
+  icp.setTransformationEpsilon (1e-8);
+  icp.getSearchMethodTarget();
+  pcl::PointCloud<PointT>::Ptr tmp(new CloudT);
+  icp.align(*tmp, res.transformation);
+  float max_range = 0.00005;
+  if(icp.hasConverged()) {
+    res.transformation = icp.getFinalTransformation();// * res.transformation;
+    res.score = icp.getFitnessScore(max_range); // bad score
+    pcl::copyPointCloud(*tmp, *res.transformed_cloud);
+  } else {
+    PCL_WARN("ICP failed!\n");
+  }
+  /*
+  std::cout << "has converged:" << icp.hasConverged() << " score: " <<
+               icp.getFitnessScore() << std::endl;
+  std::cout << icp.getFinalTransformation() << std::endl;
+  */
+  /*
+  // Calculate matching score based on features from points that are aligned
+  // NOT working propperly??
+  if(icp.hasConverged())
+  {
+    double fitness_score = 0.0;
+
+    std::vector<int> nn_indices (1);
+    std::vector<float> nn_dists (1);
+    Feature_cloud::FeatureCloudT::Ptr target_features = query.getLocalFeatures();
+    Feature_cloud::FeatureCloudT::Ptr source_features = source.getLocalFeatures();
+    // For each point in the source dataset
+    int nr = 0;
+    for (size_t i = 0; i < tmp->points.size (); ++i)
+    {
+
+      // Find its nearest neighbor in the target
+      icp.getSearchMethodTarget()->nearestKSearch (tmp->points[i], 1, nn_indices, nn_dists);
+
+      // Deal with occlusions (incomplete targets)
+      if (nn_dists[0] > max_range*2)
+        continue;
+      // calculate feature difference
+      Eigen::VectorXf p1(source_features->points[i].descriptorSize()), p2(source_features->points[i].descriptorSize());
+      for (int k = 0; k < source_features->points[i].descriptorSize(); ++k) {
+        if(source_features->points[i].histogram[k] < 1e8)
+          p1[k] = source_features->points[i].histogram[k];
+        if(target_features->points[i].histogram[k] < 1e8)
+          p2[k] = target_features->points[nn_indices[0]].histogram[k];
+      }
+      // Calculate the fitness score
+      fitness_score += fabs ((p1-p2).squaredNorm ());
+      nr++;
+    }
+
+    if (nr > 0)
+      fitness_score = (fitness_score / nr);
+    else
+      fitness_score = (std::numeric_limits<double>::max ());
+
+    res.score = fitness_score;
+  }
+  */
 }
 
 void
@@ -273,7 +345,7 @@ Object_recognition::refineAlignment(const CloudT::Ptr &query, Result &res)
   icp.align(*tmp);
   if(icp.hasConverged()) {
     res.transformation = icp.getFinalTransformation() * res.transformation;
-    res.score = icp.getFitnessScore();
+    res.score = icp.getFitnessScore(); // bad score
     pcl::copyPointCloud(*tmp, *res.transformed_cloud);
   } else {
     PCL_WARN("ICP failed!\n");
